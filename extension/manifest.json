@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "网页视频遥控器 桥接",
+  "version": "1.0.0",
+  "description": "让「网页视频遥控器」直接控制抖音/B站网页播放器：上下切换视频、长按快进、播放暂停、快进快退。",
+  "permissions": ["storage"],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "*://*.douyin.com/*",
+    "*://*.bilibili.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.douyin.com/*", "*://*.bilibili.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

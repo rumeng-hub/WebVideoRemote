@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>VDO-TEST-PAGE</title>
+<style>
+  body{font:14px/1.6 Consolas,monospace;background:#111;color:#0f0;padding:16px;margin:0}
+  /* 模拟抖音信息流：好几个 video 同时挂着，只有一个在视口里 */
+  #MAIN{width:420px;height:260px;background:#000;display:block;margin-top:40px}
+  .offscreen{position:absolute;left:-9999px;top:-9999px;width:420px;height:260px}
+</style>
+</head>
+<body>
+<h2>VDO-TEST-PAGE（多 video 选择测试）</h2>
+<div id="st">starting…</div>
+<pre id="last"></pre>
+<video id="A" class="offscreen" src="/tone.wav" muted loop></video>
+<video id="B" class="offscreen" src="/tone.wav" muted loop></video>
+<video id="MAIN" src="/tone.wav" autoplay loop></video>
+<video id="D" class="offscreen" src="/tone.wav" muted loop></video>
+<script>
+var events = [];
+function report(o) {
+  o.wall = Date.now();
+  events.push(o);
+  try { fetch('/ev', { method: 'POST', body: JSON.stringify(o) }); } catch (e) {}
+}
+window.addEventListener('keydown', function (e) {
+  report({ t: 'down', k: e.key, code: e.code, repeat: e.repeat });
+  document.getElementById('last').textContent = 'last key: ' + e.key;
+}, true);
+window.addEventListener('keyup', function (e) { report({ t: 'up', k: e.key }); }, true);
+
+// 模拟抖音网页自己的快捷键：空格 = 播放/暂停（脚本应当优先走这条路）
+window.addEventListener('keydown', function (e) {
+  if (e.code === 'Space' || e.key === ' ') {
+    e.preventDefault();
+    var v = document.getElementById('MAIN');
+    if (v.paused) v.play(); else v.pause();
+  }
+}, true);
+
+// 每个 video 的播放/暂停都上报，用来确认脚本操作的是「哪一个」
+['A', 'B', 'MAIN', 'D'].forEach(function (id) {
+  var v = document.getElementById(id);
+  v.addEventListener('play', function () { report({ t: 'play', id: id }); });
+  v.addEventListener('pause', function () { report({ t: 'pause', id: id }); });
+});
+
+var a = document.getElementById('MAIN');
+if ('mediaSession' in navigator) {
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: 'VDO-TEST-SESSION', artist: 'harness' });
+  } catch (e) {}
+}
+setInterval(function () {
+  var st = ['A', 'B', 'MAIN', 'D'].map(function (id) {
+    var v = document.getElementById(id);
+    var r = v.getBoundingClientRect();
+    var vis = r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight;
+    return id + (v.paused ? '停' : '播') + (vis ? '可见' : '屏外') + (v.muted ? '静' : '响');
+  }).join(' | ');
+  document.getElementById('st').textContent = st;
+  report({ t: 'state', paused: a.paused, ct: Math.round(a.currentTime * 10) / 10, summary: st });
+}, 1000);
+
+a.play().catch(function (e) { document.getElementById('st').textContent = 'autoplay blocked: ' + e; });
+</script>
+</body>
+</html>

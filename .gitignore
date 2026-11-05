@@ -1,0 +1,27 @@
+# Build artifacts
+build/
+obj/
+dist/
+*.user
+*.suo
+.vs/
+*.slnx
+*.log
+*.ini
+
+# Backup copies created by scripts
+*-bak.exe
+*-旧.exe
+
+# Rider / VS
+.idea/
+.vscode/
+*.csproj.user
+*.DotSettings.user
+
+# macOS / junk
+.DS_Store
+Thumbs.db
+
+# Test harness output
+tools/solo-test/

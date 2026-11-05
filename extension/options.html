@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>网页视频遥控器 · 选项</title>
+<style>
+  body { font: 14px/1.7 "Microsoft YaHei", system-ui, sans-serif; margin: 32px; color: #222; }
+  h1 { font-size: 18px; margin: 0 0 6px; }
+  p.hint { color: #666; margin: 0 0 18px; }
+  label { display: block; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+  label:hover { background: #f7f8fa; }
+  input { margin-right: 8px; }
+  #st { color: #0a7d32; min-height: 20px; }
+</style>
+</head>
+<body>
+  <h1>长按倍率</h1>
+  <p class="hint">长按 → 时使用的播放速度；松开后回到 1x。遥控器（exe）长按也使用这里的设置。</p>
+  <label><input type="radio" name="rate" value="1.5"> 1.5x</label>
+  <label><input type="radio" name="rate" value="2"> 2x（默认）</label>
+  <label><input type="radio" name="rate" value="3"> 3x</label>
+  <p id="st"></p>
+  <script src="options.js"></script>
+</body>
+</html>
