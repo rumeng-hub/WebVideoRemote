@@ -253,7 +253,9 @@ namespace WebVideoRemote
         // 模式切换时兜底：万一长按还没结束就切了模式，立刻恢复倍速
         public void AbortHold()
         {
-            if (_rightLong) FinishHold();
+            bool wasLong;
+            lock (_holdGate) wasLong = _rightLong;
+            if (wasLong) FinishHold();
         }
 
         public void Dispose() { Uninstall(); }

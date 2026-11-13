@@ -18,10 +18,11 @@
     <Product>网页视频遥控器</Product>
     <AssemblyTitle>网页视频遥控器</AssemblyTitle>
     <Company>WebVideoRemote</Company>
-    <Version>1.10.0</Version>
+    <Version>2.0.0</Version>
     <!-- 源码是 UTF-8，显式告诉编译器，避免中文变成乱码 -->
     <CodePage>65001</CodePage>
     <ApplicationManifest>src\app.manifest</ApplicationManifest>
+    <ApplicationIcon>assets\app.ico</ApplicationIcon>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
@@ -30,12 +31,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 把桥接扩展内嵌进 exe：即使只拷了 exe 出来，也能一键释放并安装 -->
-    <EmbeddedResource Include="extension\manifest.json" />
-    <EmbeddedResource Include="extension\content.js" />
-    <EmbeddedResource Include="extension\background.js" />
-    <EmbeddedResource Include="extension\options.html" />
-    <EmbeddedResource Include="extension\options.js" />
+    <!-- 只内嵌程序图标（窗口/托盘/文件图标必需）。
+         主视觉与角色立绘不放进 exe，安装时释放到 安装目录\assets\。 -->
+    <EmbeddedResource Include="assets\app.ico" />
   </ItemGroup>
 
 </Project>

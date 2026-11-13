@@ -5,7 +5,7 @@
 
   var PORT = 17777;
   var BASE = 'http://127.0.0.1:' + PORT;
-  var BRIDGE_VER = '1.10';  // 每次改脚本都要改这个；exe 会核对，版本不一致会直接提示「脚本过旧」
+  var BRIDGE_VER = '1.11';  // 每次改脚本都要改这个；exe 会核对，版本不一致会直接提示「脚本过旧」
   var IS_DOUYIN = location.hostname.indexOf('douyin.com') >= 0;
   // 调试用：本机测试页可以用 ?wvrsite=douyin 冒充抖音页
   var SITE_OVERRIDE = '';
@@ -185,15 +185,19 @@
 
   // ---------- 倍速回写 & 换视频后守住目标倍速 ----------
   // 抖音会记住「它以为的当前倍速」并贴到下一个视频上，而且回写时机不固定
-  // （keyup 后、视频激活时都可能异步贴）。关键是要分清「页面自己贴的」
-  // 和「用户主动改的」，否则 2x 会被永久锁死。
+  // （keyup 后、视频激活时都可能异步贴）。但「任何时候都纠偏」会把用户在
+  // 菜单里选的倍速也压回去——表现为倍速点了没反应、2x 之后改不回 1x。
+  // 所以只在「页面会自动贴倍速的高危窗口」内纠偏：
+  //   ① 新视频加载/起播后 RATE_GUARD_MS 内（抖音把记忆倍速贴到新视频上）
+  //   ② 长按松手后 RATE_GUARD_MS 内（页面自己处理 keyup 恢复记忆倍速）
+  // 窗口之外发生的倍速变化视为用户主动操作（菜单/快捷键），直接跟随并记住。
   // 抖音上把 1x 当作「正常速度」：页面自己贴的记忆倍速一律纠偏。
-  // （不开软件时只有这个脚本在跑，之前把真实键盘手势也当成用户偏好，
-  //  换视频/长按 → 后抖音贴的 2x 被采纳，再被纠偏器永久锁成 2x。）
   var desiredRate = (SITE === 'douyin') ? 1 : null;   // null = 还没产生过锁定目标，不干预
   var applying = 0;            // 自己回写倍速的计数，避免把自己的回写当成外部变化
   var holdQuietUntil = 0;      // 长按期间/松手后一小段，页面回写不跟随
+  var feedSwitchAt = 0;        // 最近一次视频加载/起播的时间（高危窗口起点）
   var lastSpeedMenuAt = 0;     // 最近一次在「倍速」菜单里的真实点击
+  var RATE_GUARD_MS = 2200;    // 高危窗口长度
 
   // 只有点在倍速菜单里才算用户主动改倍速；键盘（↑/↓ 换视频、长按 → 加速）
   // 全是 isTrusted 的真实按键，但都不是改倍速的意图，不能采纳页面随后贴的倍速。
@@ -260,6 +264,9 @@
     arrowDownAt = 0;
     if (!wasHolding) return;
     desiredRate = 1;             // 松手 = 1x（原始需求）
+    // 松手后抖音会异步把倍速恢复成「它记忆的值」（可能是 2x）。
+    // 这段窗口内的回写都压回 1x，否则 2x 会被当成用户意图采纳、永久锁死。
+    holdQuietUntil = Date.now() + RATE_GUARD_MS + 300;
     var press = function () { if (!holdTimer) restoreRate(1); };
     press();
     setTimeout(press, 60);
@@ -341,18 +348,22 @@
     for (var i = 0; i < vs.length; i++) setRate(vs[i], target);
   }
 
-  // 低频纠偏器：无论页面什么时候把记忆的倍速贴回来（可能晚于任何固定窗口），
-  // 500ms 内发现偏差就压回。稳态下所有 video 已等于目标值，零写入，不触发风控。
+  // 低频纠偏器：只在高危窗口内把页面贴回来的记忆倍速压回锁定目标
+  // （换视频后 / 长按松手后）。其它时间不写入——用户在菜单里选的倍速
+  // 可能恰好还没被 ratechange 处理器看到，无条件纠偏会把它覆盖掉。
   setInterval(function () {
     if (arrowDownAt) return;               // 真人正按住 →：让页面临时加速
     if (desiredRate == null || holdTimer) return;
-    restoreRate(desiredRate);
+    var now = Date.now();
+    if (now - feedSwitchAt <= RATE_GUARD_MS || now < holdQuietUntil)
+      restoreRate(desiredRate);
   }, 500);
 
   // 新视频加载 / 起播：立即把目标倍速贴上，后续万一被页面覆盖有纠偏器兜底
   function onVideoStart(e) {
     var v = e.target;
     if (!v || v.tagName !== 'VIDEO') return;
+    feedSwitchAt = Date.now();              // 抖音会把记忆倍速贴到新视频上，开高危窗口
     if (desiredRate == null || holdTimer || arrowDownAt) return;
     setRate(v, desiredRate);
     var press = function () { if (!holdTimer) setRate(v, desiredRate); };
@@ -367,14 +378,22 @@
     if (!v || v.tagName !== 'VIDEO') return;
     if (applying > 0) return;                  // 我们自己改的，忽略
     if (arrowDownAt) return;                    // 真人按住 →：倍速由我们接管，不跟随页面
-    if (holdTimer || Date.now() < holdQuietUntil) return;  // 遥控长按中/刚松手：不跟随
-    if (Date.now() - lastSpeedMenuAt < 1500) {
-      // 刚在倍速菜单里点过：这是用户主动选的倍速，跟随
+    if (holdTimer) return;                      // 遥控长按中：不跟随
+    var now = Date.now();
+    if (now - lastSpeedMenuAt < 1500) {
+      // 刚在倍速菜单里点过：这是用户主动选的倍速，跟随（即使恰逢高危窗口）
       desiredRate = v.playbackRate;
       return;
     }
-    // 没有菜单点击：必是页面自己贴的记忆倍速，立刻压回锁定目标
-    if (desiredRate != null) setRate(v, desiredRate);
+    if (desiredRate == null) return;            // 没有锁定目标，不干预
+    var guard = (now - feedSwitchAt <= RATE_GUARD_MS) || (now < holdQuietUntil);
+    if (guard) {
+      // 高危窗口内：必是页面自己贴的记忆倍速，立刻压回锁定目标
+      setRate(v, desiredRate);
+    } else {
+      // 窗口外：视为用户主动改倍速（菜单、快捷键、其它入口），跟随并记住
+      desiredRate = v.playbackRate;
+    }
   }, true);
 
   function startHold(rate) {
@@ -398,12 +417,14 @@
     // 兜底：万一「松开」那条指令没送到，20 秒后自己恢复原速并锁定 1x
     if (holdWatchdog) clearTimeout(holdWatchdog);
     holdWatchdog = setTimeout(function () {
+      // 必须连定时器一起清掉：只把 holdTimer 置空的话，setInterval 仍在跑，
+      // apply() 会继续把当前视频压回 holdRate，结果永久停在 2 倍速。
+      if (holdTimer) { clearInterval(holdTimer); holdTimer = null; }
       desiredRate = 1;
       restoreRate(1);
-      holdTimer = null;
       holdWatchdog = null;
       holdTarget = null;
-      holdQuietUntil = Date.now() + 2000;
+      holdQuietUntil = Date.now() + RATE_GUARD_MS;
     }, 20000);
   }
 
@@ -416,7 +437,7 @@
     holdTarget = null;
     restoreRate();
     fireKey('keyup', 'ArrowRight', 'ArrowRight', 39);
-    holdQuietUntil = Date.now() + 2000;   // 松手后 2 秒内的回写都不算用户意图（真实 keyup 可能穿透到浏览器）
+    holdQuietUntil = Date.now() + RATE_GUARD_MS;   // 松手后窗口内的回写都不算用户意图（真实 keyup 可能穿透到浏览器）
     if (forceOne) {
       desiredRate = 1;   // 松手 = 1 倍速，并且守住之后切换的新视频
       var press = function () { if (!holdTimer) restoreRate(); };

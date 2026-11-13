@@ -13,11 +13,11 @@
 
 ## 一、直接使用
 
-1. 双击 `dist\网页视频遥控器.exe`（不需要安装，不需要 Python/Node）。
+1. 双击 `dist\网页视频遥控器-安装程序.exe`，按向导选择安装位置（默认装到当前用户目录，不需要管理员权限；运行时、素材、扩展都由安装程序一并释放）。
 2. **装一次浏览器桥接扩展**（只有抖音的 `↑`/`↓`、长按快进需要它，2 步搞定）：
-   - 在程序窗口点「装桥接扩展」按钮，它会告诉你步骤并打开 `dist\extension` 文件夹；
+   - 在程序窗口点「装桥接扩展」按钮，它会告诉你步骤并打开安装目录里的 `extension` 文件夹；
    - 浏览器地址栏输入 `edge://extensions`（Chrome 用 `chrome://extensions`）→ 打开「开发人员模式」→「加载解压缩的扩展」→ 选中那个 `extension` 文件夹。
-   - 详细图文说明见 `dist\extension\安装说明.txt`。
+   - 详细图文说明见安装目录里的 `extension\安装说明.txt`。
 3. 在 Edge / Chrome 里打开 B站 或 抖音，并且**正在播放**。
 4. 程序窗口会显示当前控制的是哪个视频、桥接脚本是否已连接；然后就能用上面的热键了。
 5. 点窗口右上角 × 会缩到托盘继续工作；要彻底退出用「退出程序」按钮或托盘右键菜单。
@@ -136,8 +136,9 @@
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-- `src/` 是全部源码（C#，.NET Framework 4.8 + WinForms，无第三方依赖）。
-- 产物：`build\WebVideoRemote.exe`，脚本会同时复制到 `dist\网页视频遥控器.exe`。
+- `src/` 是主程序源码（C#，.NET 8 + WinForms，无第三方依赖）。
+- `installer/` 是安装向导与卸载程序（.NET Framework 4.8，Win10/11 自带，无需额外运行时）。
+- `build.ps1` 会调用 `build-installer.ps1`：先发布自包含多文件版本，再连同 assets / extension / 卸载程序一起打包，最后生成 `dist\网页视频遥控器-安装程序.exe`。
 - `tools/` 是开发时用的本地测试台（`harness.js` 起一个带 `<video>`/`<audio>` 的本地页面，
   用 Edge 打开后可通过 `cdp.js` 观察页面到底收没收到按键），跟正式程序无关。
 

@@ -1,15 +1,17 @@
-﻿// 桥接扩展的释放：优先用 exe 同级的 extension 文件夹；
-// 找不到（比如只拷了 exe 出来）就把内嵌在程序里的扩展释放到用户目录，保证「装扩展」永远可用。
+﻿// 桥接扩展的位置：安装目录下的 extension 文件夹（安装程序会释放好）。
+// 扩展不再内嵌进 exe，缺失时明确提示「安装不完整」。
 using System;
 using System.IO;
-using System.Reflection;
 using System.Text;
 
 namespace WebVideoRemote
 {
     static class ExtensionPack
     {
-        static readonly string[] Embedded = { "manifest.json", "content.js", "background.js", "options.html", "options.js" };
+        public static string BesideDir
+        {
+            get { return Path.Combine(Log.AppDir, "extension"); }
+        }
 
         public static string LocalDir
         {
@@ -20,30 +22,24 @@ namespace WebVideoRemote
             }
         }
 
-        public static string BesideDir
-        {
-            get { return Path.Combine(Log.AppDir, "extension"); }
-        }
-
-        // 如果用户当初是从「用户目录」那份副本加载的扩展，
-        // 每次启动都把程序内嵌的最新脚本覆盖过去 —— 这样他点「重新加载」拿到的就是新版。
+        // 旧版本可能把扩展释放到用户目录，浏览器里加载的也是那份。
+        // 启动时用安装目录的新副本覆盖，省得用户手动重新加载扩展。
         public static void RefreshLocalCopyIfExists()
         {
             try
             {
                 if (!Directory.Exists(LocalDir)) return;
-                var asm = Assembly.GetExecutingAssembly();
-                int n = 0;
-                foreach (var name in Embedded)
+                if (!File.Exists(Path.Combine(BesideDir, "manifest.json"))) return;
+
+                foreach (var f in Directory.GetFiles(BesideDir))
                 {
-                    string res = FindResource(asm, name);
-                    if (res == null) continue;
-                    using (var s = asm.GetManifestResourceStream(res))
-                    using (var f = File.Create(Path.Combine(LocalDir, name)))
-                        s.CopyTo(f);
-                    n++;
+                    string name = Path.GetFileName(f);
+                    if (!name.EndsWith(".js", StringComparison.OrdinalIgnoreCase) &&
+                        !name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
+                        !name.EndsWith(".html", StringComparison.OrdinalIgnoreCase)) continue;
+                    File.Copy(f, Path.Combine(LocalDir, name), true);
                 }
-                Log.Write("已把扩展副本刷新为当前版本（" + n + " 个文件）: " + LocalDir);
+                Log.Write("已把用户目录里的扩展副本更新为安装目录版本: " + LocalDir);
             }
             catch (Exception e) { Log.Write("刷新扩展副本失败: " + e.Message); }
         }
@@ -54,40 +50,18 @@ namespace WebVideoRemote
             extracted = false;
 
             if (File.Exists(Path.Combine(BesideDir, "manifest.json")))
-                return BesideDir;
-
-            string dir = LocalDir;
-            try
             {
-                Directory.CreateDirectory(dir);
-                var asm = Assembly.GetExecutingAssembly();
-                foreach (var name in Embedded)
+                try
                 {
-                    string res = FindResource(asm, name);
-                    if (res == null) { Log.Write("内嵌扩展缺少: " + name); continue; }
-                    using (var s = asm.GetManifestResourceStream(res))
-                    using (var f = File.Create(Path.Combine(dir, name)))
-                        s.CopyTo(f);
+                    string readme = Path.Combine(BesideDir, "安装说明.txt");
+                    if (!File.Exists(readme)) File.WriteAllText(readme, ReadmeText, new UTF8Encoding(true));
                 }
-                File.WriteAllText(Path.Combine(dir, "安装说明.txt"), ReadmeText, new UTF8Encoding(true));
-                extracted = true;
-                Log.Write("已把桥接扩展释放到: " + dir);
-                return dir;
-            }
-            catch (Exception e)
-            {
-                Log.Write("释放扩展失败: " + e.Message);
+                catch { }
                 return BesideDir;
             }
-        }
 
-        static string FindResource(Assembly asm, string fileName)
-        {
-            foreach (var r in asm.GetManifestResourceNames())
-                if (r.EndsWith("." + fileName, StringComparison.OrdinalIgnoreCase) ||
-                    r.EndsWith(fileName, StringComparison.OrdinalIgnoreCase))
-                    return r;
-            return null;
+            Log.Write("未找到扩展目录: " + BesideDir + "（安装包可能没有完整解压，请重新运行安装程序）");
+            return BesideDir;
         }
 
         public const string ReadmeText =
@@ -105,13 +79,13 @@ namespace WebVideoRemote
             "【Chrome 安装步骤】\r\n" +
             "同上，地址栏改成： chrome://extensions\r\n\r\n\r\n" +
             "【验证是否装好】\r\n" +
-            "1. 先启动 网页视频遥控器.exe（保持运行）。\r\n" +
+            "1. 先启动 网页视频遥控器（保持运行）。\r\n" +
             "2. 用浏览器打开抖音并播放一个视频。\r\n" +
             "3. 回到遥控器窗口，状态栏第二行会显示「脚本已连接」。\r\n\r\n\r\n" +
             "【常见问题】\r\n" +
             "Q: 遥控器窗口显示「脚本未连接」？\r\n" +
             "A: ① 确认遥控器程序正在运行；② 确认扩展已启用；③ 刷新一下抖音页面。\r\n\r\n" +
             "Q: 想彻底移除？\r\n" +
-            "A: 在 edge://extensions 里点「移除」，再删掉这个文件夹即可。\r\n";
+            "A: 在 edge://extensions 里点「移除」，再运行安装目录里的「卸载.exe」即可。\r\n";
     }
 }

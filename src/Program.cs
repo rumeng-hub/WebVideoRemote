@@ -50,7 +50,42 @@ namespace WebVideoRemote
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+
+            // 界面线程上的异常也落盘：否则自定义绘制的偶发问题会表现为「窗口闪一下就没了」
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (a, b) => CrashLog(b.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (a, b) => CrashLog(b.ExceptionObject as Exception);
+
+            // 首次运行（还没有配置文件）时展示启动封面，之后不再打扰
+            try
+            {
+                bool firstRun = !File.Exists(Path.Combine(Log.AppDir, "WebVideoRemote.ini"));
+                if (firstRun)
+                    using (var splash = new SplashForm()) splash.ShowDialog();
+            }
+            catch { }
+
+            try
+            {
+                Application.Run(new MainForm());
+            }
+            catch (Exception e)
+            {
+                // 启动阶段崩溃时界面还没起来，日志文件也可能没写；单独落一份堆栈，避免「双击没反应」
+                CrashLog(e);
+                MessageBox.Show("程序启动失败：" + e.Message + "\r\n\r\n详细信息已写入 exe 同目录的 WebVideoRemote-crash.txt",
+                    "网页视频遥控器", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        static void CrashLog(Exception e)
+        {
+            try
+            {
+                File.AppendAllText(Path.Combine(Log.AppDir, "WebVideoRemote-crash.txt"),
+                    DateTime.Now + "\r\n" + e + "\r\n\r\n", new UTF8Encoding(true));
+            }
+            catch { }
         }
     }
 
@@ -123,6 +158,7 @@ namespace WebVideoRemote
         public bool MinimizeToTray = true;   // 关闭窗口时缩到托盘
         public int SafetyHoldMs = 15000;     // 长按快进看门狗：最长按住时间
         public bool AcceptInjected = false;  // 调试用：连「合成按键」也响应（默认关，开了可能自我循环）
+        public int Theme = 0;                // 界面角色主题：0=芙宁娜 1=流萤
 
         public bool IsDouyin { get { return Mode == 1; } }
         public bool IsAuto { get { return Mode == 2; } }
@@ -148,10 +184,12 @@ namespace WebVideoRemote
                         {
                             case "enabled": s.Enabled = v != "0"; break;
                             case "mode": if (int.TryParse(v, out n) && n >= 0 && n <= 2) s.Mode = n; break;
-                            case "step": if (int.TryParse(v, out n) && n > 0) s.Step = n; break;
-                            case "douyinseek": if (int.TryParse(v, out n) && n > 0) s.DouyinSeek = n; break;
+                            // 只接受界面上真实存在的选项，避免 ini 被改成界面显示与实际行为不一致
+                            case "step": if (int.TryParse(v, out n) && (n == 5 || n == 10 || n == 15 || n == 30 || n == 60)) s.Step = n; break;
+                            case "douyinseek": if (int.TryParse(v, out n) && (n == 5 || n == 10 || n == 15 || n == 30)) s.DouyinSeek = n; break;
                             case "holdff": s.HoldFastForward = v != "0"; break;
-                            case "holdms": if (int.TryParse(v, out n) && n >= 100) s.HoldMs = n; break;
+                            case "holdms": if (int.TryParse(v, out n) &&
+                                (n == 200 || n == 250 || n == 300 || n == 400 || n == 500 || n == 650)) s.HoldMs = n; break;
                             case "interceptcaps": s.InterceptCaps = v != "0"; break;
                             case "interceptarrows": s.InterceptArrows = v != "0"; break;
                             case "interceptupdown": s.InterceptUpDown = v != "0"; break;
@@ -162,6 +200,7 @@ namespace WebVideoRemote
                             case "minimizetotray": s.MinimizeToTray = v != "0"; break;
                             case "acceptinjected": s.AcceptInjected = v != "0"; break;
                             case "safetyhold": if (int.TryParse(v, out n) && n >= 1000) s.SafetyHoldMs = n; break;
+                            case "theme": if (int.TryParse(v, out n) && n >= 0 && n <= 1) s.Theme = n; break;
                         }
                     }
                 }
@@ -192,7 +231,9 @@ namespace WebVideoRemote
                     "usebgpost="       + (UseBgPost ? 1 : 0),
                     "usebridge="       + (UseBridge ? 1 : 0),
                     "minimizetotray="  + (MinimizeToTray ? 1 : 0),
-                    "safetyhold="      + SafetyHoldMs
+                    "safetyhold="      + SafetyHoldMs,
+                    "acceptinjected="  + (AcceptInjected ? 1 : 0),
+                    "theme="           + Theme
                 }, new UTF8Encoding(true));
             }
             catch (Exception e) { Log.Write("保存配置失败: " + e.Message); }

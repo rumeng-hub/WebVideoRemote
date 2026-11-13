@@ -34,7 +34,7 @@ namespace WebVideoRemote
         public const string AnySite = "any";
 
         // exe 期望的桥接脚本版本（和 extension/content.js 里的 BRIDGE_VER 对应）
-        public const string ExpectedVer = "1.10";
+        public const string ExpectedVer = "1.11";
 
         public string LastState = "";
         public string LastSite = "";
@@ -147,6 +147,51 @@ namespace WebVideoRemote
             }
         }
 
+        // 只记录「这个网站刚刚上报过」，不动长轮询计数。
+        // /state 是脚本每 5 秒一次的状态上报，不是挂起中的轮询请求，
+        // 之前误用 MarkPoll(site,false) 会把正在挂起的轮询计数扣掉，导致连接状态抖动。
+        void NoteSite(string site)
+        {
+            lock (_lock)
+            {
+                _lastPoll[site] = Environment.TickCount;
+                if (site != AnySite) LastSite = site;
+            }
+        }
+
+        // 读完整一个 HTTP 请求（含 POST body）。
+        // 之前只 Read 一次，body 被 TCP 拆包时 /state 会截断，版本与回执就解析不出来。
+        static string ReadRequest(NetworkStream ns)
+        {
+            var ms = new System.IO.MemoryStream();
+            var buf = new byte[4096];
+            int headerEnd = -1, contentLength = 0;
+            try { ns.ReadTimeout = 3000; } catch { }
+            while (true)
+            {
+                int n;
+                try { n = ns.Read(buf, 0, buf.Length); }
+                catch { break; }
+                if (n <= 0) break;
+                ms.Write(buf, 0, n);
+
+                if (headerEnd < 0)
+                {
+                    string hay = Encoding.ASCII.GetString(ms.GetBuffer(), 0, (int)ms.Length);
+                    headerEnd = hay.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+                    if (headerEnd >= 0)
+                    {
+                        foreach (var line in hay.Substring(0, headerEnd).Split(new[] { "\r\n" }, StringSplitOptions.None))
+                            if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
+                                int.TryParse(line.Substring(15).Trim(), out contentLength);
+                    }
+                }
+                if (headerEnd >= 0 && (int)ms.Length - (headerEnd + 4) >= contentLength) break;
+                if (ms.Length > 65536) break;
+            }
+            return Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
+        }
+
         void Handle(object state)
         {
             var client = (TcpClient)state;
@@ -155,10 +200,8 @@ namespace WebVideoRemote
                 client.NoDelay = true;
                 using (var ns = client.GetStream())
                 {
-                    var buf = new byte[16384];
-                    int n = ns.Read(buf, 0, buf.Length);
-                    if (n <= 0) return;
-                    string req = Encoding.UTF8.GetString(buf, 0, n);
+                    string req = ReadRequest(ns);
+                    if (req.Length == 0) return;
 
                     int sp1 = req.IndexOf(' ');
                     int sp2 = sp1 > 0 ? req.IndexOf(' ', sp1 + 1) : -1;
@@ -221,7 +264,7 @@ namespace WebVideoRemote
 
                                 string site = body.IndexOf("\"site\":\"douyin\"", StringComparison.Ordinal) >= 0 ? "douyin"
                                             : body.IndexOf("bilibili", StringComparison.Ordinal) >= 0 ? "bilibili" : AnySite;
-                                MarkPoll(site, false);
+                                NoteSite(site);
                             }
                         }
                         Write(ns, 200, "{\"ok\":true}");

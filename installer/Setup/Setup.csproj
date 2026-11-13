@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>9.0</LangVersion>
+    <AssemblyName>WebVideoRemoteSetup</AssemblyName>
+    <RootNamespace>WebVideoRemote</RootNamespace>
+    <ApplicationManifest>..\app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\app.ico</ApplicationIcon>
+    <Product>网页视频遥控器 安装程序</Product>
+    <AssemblyTitle>网页视频遥控器 安装程序</AssemblyTitle>
+    <Company>WebVideoRemote</Company>
+    <Version>2.0.0</Version>
+    <DebugType>none</DebugType>
+    <CodePage>65001</CodePage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 安装向导复用主程序的绘制皮肤（纯 GDI+，不依赖 .NET 8） -->
+    <Compile Include="..\..\src\Theme.cs" Link="Theme.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 界面素材：只存在于安装程序里，安装时释放到安装目录的 assets 子目录 -->
+    <EmbeddedResource Include="..\..\assets\app.ico" LogicalName="Setup.app.ico" />
+    <EmbeddedResource Include="..\..\assets\hero_furina_band.png" LogicalName="Setup.hero_furina_band.png" />
+    <EmbeddedResource Include="..\..\assets\hero_firefly_band.png" LogicalName="Setup.hero_firefly_band.png" />
+    <EmbeddedResource Include="..\..\assets\char_furina_card.png" LogicalName="Setup.char_furina_card.png" />
+    <EmbeddedResource Include="..\..\assets\char_firefly_card.png" LogicalName="Setup.char_firefly_card.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 安装负载：由 build-installer.ps1 生成 -->
+    <EmbeddedResource Include="..\..\build\payload.zip" LogicalName="payload.zip"
+                      Condition="Exists('..\..\build\payload.zip')" />
+  </ItemGroup>
+
+</Project>

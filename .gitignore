@@ -25,3 +25,5 @@ Thumbs.db
 
 # Test harness output
 tools/solo-test/
+
+bin/

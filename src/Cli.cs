@@ -100,7 +100,7 @@ namespace WebVideoRemote
                         bool extracted;
                         string d = ExtensionPack.Ensure(out extracted);
                         Console.WriteLine("扩展目录: " + d);
-                        Console.WriteLine(extracted ? "（exe 旁边没有 extension，已从程序内释放出来）" : "（用的就是 exe 旁边的 extension 文件夹）");
+                        Console.WriteLine("（安装目录下的 extension 文件夹）");
                         try
                         {
                             foreach (var f in System.IO.Directory.GetFiles(d))
