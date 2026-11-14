@@ -56,12 +56,17 @@ namespace WebVideoRemote
             Application.ThreadException += (a, b) => CrashLog(b.Exception);
             AppDomain.CurrentDomain.UnhandledException += (a, b) => CrashLog(b.ExceptionObject as Exception);
 
-            // 首次运行（还没有配置文件）时展示启动封面，之后不再打扰
+            // 首次运行（来过没）时展示启动封面，之后不再打扰。
+            // 注意不能用「ini 是否存在」单独判断：ini 只在用户改动设置时才写，
+            // 从不动设置的用户 ini 永远不生成，封面会每次启动都弹。
+            // 看完封面写用户目录标记；卸载程序会把这个目录一并清掉，重装后封面再展示一次。
             try
             {
-                bool firstRun = !File.Exists(Path.Combine(Log.AppDir, "WebVideoRemote.ini"));
-                if (firstRun)
+                if (FirstRun())
+                {
                     using (var splash = new SplashForm()) splash.ShowDialog();
+                    MarkSplashSeen();
+                }
             }
             catch { }
 
@@ -86,6 +91,37 @@ namespace WebVideoRemote
                     DateTime.Now + "\r\n" + e + "\r\n\r\n", new UTF8Encoding(true));
             }
             catch { }
+        }
+
+        // 封面看过的标记：放用户目录（安装目录可能只读），卸载时随 WebVideoRemote 目录一起清掉
+        static string SplashFlagPath
+        {
+            get
+            {
+                return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "WebVideoRemote", "splash.seen");
+            }
+        }
+
+        static bool FirstRun()
+        {
+            try
+            {
+                if (File.Exists(Path.Combine(Log.AppDir, "WebVideoRemote.ini"))) return false;   // 有配置 = 老用户
+                return !File.Exists(SplashFlagPath);
+            }
+            catch { return false; }
+        }
+
+        static void MarkSplashSeen()
+        {
+            try
+            {
+                string flag = SplashFlagPath;
+                Directory.CreateDirectory(Path.GetDirectoryName(flag));
+                File.WriteAllText(flag, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), new UTF8Encoding(true));
+            }
+            catch { }   // 用户目录也写不进：保持旧行为（下次还会弹封面），不再扩大处理
         }
     }
 
