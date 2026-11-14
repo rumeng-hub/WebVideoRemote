@@ -386,13 +386,15 @@ namespace WebVideoRemote
             _cmbHold.SelectedIndexChanged += (a, b) => { _s.DouyinSeek = new[] { 5, 10, 15, 30 }[_cmbHold.SelectedIndex]; SaveApply(); };
 
             var l3 = Solid(MakeLabel("长按阈值", 378, 34, 150, 16, 10.5f, Palette.TextDim), surf);
-            var vals = new[] { 200, 250, 300, 400, 500, 650 };
+            // 必须包含默认值 350（Program.cs 的 HoldMs），否则默认状态下索引匹配不到，
+            // 下拉框会落在第 0 项显示"200 ms"，与实际阈值 350ms 不一致
+            var vals = new[] { 200, 250, 300, 350, 400, 500, 650 };
             int idx = 0;
             for (int i = 0; i < vals.Length; i++) if (vals[i] == _s.HoldMs) idx = i;
             _cmbHoldMs = new NeoSelect
             {
                 Location = new Point(378, 54), Size = new Size(160, 30),
-                Items = new[] { "200 ms", "250 ms", "300 ms", "400 ms", "500 ms", "650 ms" },
+                Items = new[] { "200 ms", "250 ms", "300 ms", "350 ms", "400 ms", "500 ms", "650 ms" },
                 SelectedIndex = idx
             };
             _cmbHoldMs.SelectedIndexChanged += (a, b) => { _s.HoldMs = vals[_cmbHoldMs.SelectedIndex]; SaveApply(); };

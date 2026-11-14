@@ -8,6 +8,7 @@ using System.Drawing;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -20,6 +21,8 @@ namespace WebVideoRemote
         const string ExeName = "网页视频遥控器.exe";
         const string UninstallName = "卸载.exe";
         const string PayloadResource = "payload.zip";
+        // 卸载清单：卸载时只删这里列出的文件，避免误删用户选的目录里的其他文件
+        public const string ManifestName = "WebVideoRemote-uninstall.files";
 
         readonly List<Control>[] _pages = new List<Control>[4];
 
@@ -416,6 +419,7 @@ namespace WebVideoRemote
                     {
                         foreach (var e in zip.Entries) total += e.Length;
 
+                        var manifest = new List<string>();
                         string root = Path.GetFullPath(dir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
                         foreach (var e in zip.Entries)
                         {
@@ -426,11 +430,13 @@ namespace WebVideoRemote
                             if (rel.EndsWith(Path.DirectorySeparatorChar.ToString()))
                             {
                                 Directory.CreateDirectory(dest);
+                                manifest.Add(rel);
                                 continue;
                             }
 
                             Directory.CreateDirectory(Path.GetDirectoryName(dest));
                             e.ExtractToFile(dest, true);
+                            manifest.Add(rel);
                             done += e.Length;
 
                             int pct = total > 0 ? (int)(done * 100L / total) : 0;
@@ -441,6 +447,13 @@ namespace WebVideoRemote
                                 _status.Text = "正在释放：" + name;
                             });
                         }
+
+                        // 卸载时按这份清单精确删除；写失败只影响卸载精度，不算安装失败
+                        try
+                        {
+                            File.WriteAllLines(Path.Combine(dir, ManifestName), manifest, new UTF8Encoding(true));
+                        }
+                        catch (Exception me) { Log.Write("写卸载清单失败: " + me.Message); }
                     }
                 }
 

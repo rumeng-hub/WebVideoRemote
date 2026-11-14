@@ -189,7 +189,7 @@ namespace WebVideoRemote
                             case "douyinseek": if (int.TryParse(v, out n) && (n == 5 || n == 10 || n == 15 || n == 30)) s.DouyinSeek = n; break;
                             case "holdff": s.HoldFastForward = v != "0"; break;
                             case "holdms": if (int.TryParse(v, out n) &&
-                                (n == 200 || n == 250 || n == 300 || n == 400 || n == 500 || n == 650)) s.HoldMs = n; break;
+                                (n == 200 || n == 250 || n == 300 || n == 350 || n == 400 || n == 500 || n == 650)) s.HoldMs = n; break;
                             case "interceptcaps": s.InterceptCaps = v != "0"; break;
                             case "interceptarrows": s.InterceptArrows = v != "0"; break;
                             case "interceptupdown": s.InterceptUpDown = v != "0"; break;
